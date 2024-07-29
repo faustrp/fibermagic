@@ -44,7 +44,7 @@ def reference(df, region, wave_len, lambd=1e4, smooth_win=10):
 
 def sync_from_TTL_gen(logs, path):
     """
-    attatches Bonsai frame numbers to the the logs
+    attaches Bonsai frame numbers to the the logs
     :param logs: log df with column SI@0.0
     :param sync_signals: df with timestamps of recorded sync signals from FP, columns Item1 and Item2
     :param timestamps: df with timestamp for each FP frame, columns Item1 and Item2
@@ -65,7 +65,16 @@ def sync_from_TTL_gen(logs, path):
     logs = logs[['FrameCounter', 'Event', 'Timestamp']]
     return logs.set_index('FrameCounter')
 
+def sync_from_Bonsai_behavior_logs(logs, path): 
+    """
+    attaches Neurophotometrics frame numbers to the the behavior logs
+    :param logs: behavior log df with timestamp column
+    :param timestamps: df consisting of FrameCounter column and the chosen timestamp column (usually SystemTimestamp) for red and green channels of photometry data 
+    :return: log file with new column Frame_Bonsai with FP frame number for each event
+    """
 
+    
+    
 def read_project_logs(project_path, subdirs, sync_fun=sync_from_TTL_gen, ignore_dirs=['meta']):
     """
     Merges all log files from a project into one
