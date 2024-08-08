@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 
 from fibermagic.core.perievents import perievents
-from fibermagic.core.demodulate import zdFF_airPLS, add_zdFF
+from fibermagic.core import demodulate
 
 NPM_RED = 560
 NPM_GREEN = 470
