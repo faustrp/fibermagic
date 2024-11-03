@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-
+import glob
 
 def single_bout(df, logs, event, window, frequency):
     """
@@ -25,6 +25,26 @@ def single_bout(df, logs, event, window, frequency):
     time_locked.index = (time_locked.index - dist) / frequency
     return time_locked
 
+def bout_finder(logs, event, threshold):
+    logs['inter'] = logs[logs['Event'] == event]['Timestamp'].diff().fillna(
+        logs[logs['Event'] == event]['Timestamp'])
+    logs['bout'] = np.where(logs['inter'] >= threshold, 1, 0)
+    logs['lever_bout'] = logs['bout'].cumsum()
+    logs['lever_number'] = logs[logs['Event'] == event].groupby('animal.ID').cumcount() + 1
+    logs['count'] = logs[logs['Event'] == event].groupby('lever_bout')['lever_number'].transform('size')
+    logs['Cum_lever_bouts'] = logs[logs['Event'] == event].groupby(['animal.ID', 'lever_bout']).cumcount() + 1
+    bout_start_rows = logs[logs['bout'] == 1].copy()
+    bout_start_rows['Event'] = 'BS'
+    bout_start_rows['Timestamp'] = bout_start_rows['Timestamp'] - 0.0001
+    logs = pd.concat([logs, bout_start_rows], ignore_index=True)
+    logs = logs.sort_values(by='Timestamp').reset_index(drop=True)
+    bout_end_rows = logs[logs['Event'] == event].groupby('lever_bout').tail(1).copy()
+    bout_end_rows['Event'] = 'BE'
+    bout_end_rows['Timestamp'] = bout_end_rows['Timestamp'] + 0.0001
+    # bouts['inter'] = bouts.groupby('animal.ID')['inter'].apply(lambda x: x.mask(x.index == x.idxmin(), 0))
+    bouts = pd.concat([logs, bout_end_rows], ignore_index=True)
+    bouts = bouts.sort_values(by='Timestamp').reset_index(drop=True)
+    return bouts
 
 def peribouts(df, logs, bout_threshold):
 
@@ -44,10 +64,12 @@ def peribouts(df, logs, bout_threshold):
         bout_start_time = start_row['Timestamp']
 
         # Find corresponding 'BE' event for the same bout
-         bout_end_time = bout_end_logs[
+        bout_end_row = bout_end_logs[
         (bout_end_logs['animal.ID'] == animal_id) &
         (bout_end_logs['lever_bout'] == start_row['lever_bout'])
-        ]['Timestamp'].values[0]  # Assuming one 'BE' per 'BS'
+        ].copy()
+
+        bout_end_time = bout_end_row['Timestamp'].values[0]  # Assuming one 'BE' per 'BS'
 
         # Skip if bout does not have a corresponding end event
         if pd.isna(bout_end_time):
@@ -56,10 +78,14 @@ def peribouts(df, logs, bout_threshold):
         # Slice the data around the bout start ('BS') and end ('BE')
         bout_df = df.loc[
             (df['Timestamp'] >= bout_start_time - bout_threshold) &
-            (df['Timestamp'] <= bout_end_time + bout_threshold)
-            ]
+            (df['Timestamp'] <= bout_end_time)
+            ].copy()
 
-        bout_df['Timestamp'] = bout_df['Timestamp']-bout_df['Timestamp'][0]
+        if len(bout_df) <= 1:
+            continue
+
+        bout_df['Timestamp'] -= bout_df['Timestamp'].iloc[0]
+        bout_df['Timestamp'] = bout_df['Timestamp'] - bout_threshold
         bout_df['lever_bout'] = start_row['lever_bout']
 
         # Add this slice to the bout list
@@ -68,6 +94,8 @@ def peribouts(df, logs, bout_threshold):
     bout_FP = pd.concat(bout_FP)
     bout_FP = bout_FP.reset_index(['FrameCounter'], drop=True)
     return bout_FP
+
+
 
 def bouts_2D(df, logs, window, frequency):
     """
